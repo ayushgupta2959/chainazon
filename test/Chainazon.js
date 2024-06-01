@@ -17,12 +17,12 @@ const STOCK = 5;
 
 describe("Chainazon", () => {
   let chainazon;
-  let deployer, owner;
+  let deployer, buyer;
   beforeEach(async () => {
     const Chainazon = await ethers.getContractFactory("Chainazon");
     chainazon = await Chainazon.deploy();
 
-    [deployer, owner] = await ethers.getSigners();
+    [deployer, buyer] = await ethers.getSigners();
   });
 
   describe("Deployment", () => {
@@ -56,6 +56,74 @@ describe("Chainazon", () => {
 
     it("Emits List event", () => {
       expect(transaction).to.emit(chainazon, "List");
+    });
+  });
+
+  describe("Buying", () => {
+    let transaction;
+
+    beforeEach(async () => {
+      transaction = await chainazon
+        .connect(deployer)
+        .list(ID, NAME, CATEGORY, IMAGE, COST, RATING, STOCK);
+      await transaction.wait();
+
+      transaction = await chainazon.connect(buyer).buy(ID, { value: COST });
+      await transaction.wait();
+    });
+
+    it("Updates buyer's order count", async () => {
+      const result = await chainazon.orderCount(buyer.address);
+      expect(result).to.equal(1);
+    });
+
+    it("Adds the order", async () => {
+      const order = await chainazon.orders(buyer.address, 1);
+
+      expect(order.time).to.be.greaterThan(0);
+      expect(order.item.name).to.equal(NAME);
+    });
+
+    it("Updates the contract balance", async () => {
+      const result = await ethers.provider.getBalance(chainazon.address);
+      expect(result).to.equal(COST);
+    });
+
+    it("Emits Buy event", () => {
+      expect(transaction).to.emit(chainazon, "Buy");
+    });
+  });
+
+  describe("Withdrawing", () => {
+    let balanceBefore;
+
+    beforeEach(async () => {
+
+      let transaction = await chainazon
+        .connect(deployer)
+        .list(ID, NAME, CATEGORY, IMAGE, COST, RATING, STOCK);
+      await transaction.wait();
+
+
+      transaction = await chainazon.connect(buyer).buy(ID, { value: COST });
+      await transaction.wait();
+
+      // Get Deployer balance before
+      balanceBefore = await ethers.provider.getBalance(deployer.address);
+
+
+      transaction = await chainazon.connect(deployer).withdraw();
+      await transaction.wait();
+    });
+
+    it("Updates the owner balance", async () => {
+      const balanceAfter = await ethers.provider.getBalance(deployer.address);
+      expect(balanceAfter).to.be.greaterThan(balanceBefore);
+    });
+
+    it("Updates the contract balance", async () => {
+      const result = await ethers.provider.getBalance(chainazon.address);
+      expect(result).to.equal(0);
     });
   });
 });
