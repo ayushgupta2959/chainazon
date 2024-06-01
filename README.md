@@ -1,4 +1,4 @@
-# Dappazon
+# Chainazon
 
 ## Technology Stack & Tools
 
